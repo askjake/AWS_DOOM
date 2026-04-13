@@ -1,0 +1,82 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║          AWS ARCHITECTURE EXPLORER - WINDOWS QUICK REFERENCE      ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+📦 INSTALLATION (First Time Only)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Double-click: deploy.bat
+   (Installs everything automatically)
+
+🚀 RUNNING THE APP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Double-click: run_app.bat
+   (Opens in your browser automatically)
+
+🔧 MANUAL COMMANDS (If batch files don't work)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Deploy:     powershell -ExecutionPolicy Bypass -File deploy.ps1
+Test:       python test_connectivity.py
+Run App:    streamlit run aws_architecture_explorer_app_direct.py
+
+⚙️ PREREQUISITES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ AWS CLI    https://aws.amazon.com/cli/
+✓ Python     https://www.python.org/downloads/
+✓ Configure: aws configure
+
+🧪 TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Check AWS CLI:      aws --version
+Check credentials:  aws sts get-caller-identity
+Test connectivity:  python test_connectivity.py
+
+📁 KEY FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+deploy.bat          → Install & setup (run once)
+run_app.bat         → Launch application (run anytime)
+WINDOWS_README.md   → Full Windows documentation
+SUMMARY.md          → Project overview
+
+🛠️ TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"aws not recognized"
+  → Add to PATH or reinstall AWS CLI
+
+"python not recognized"  
+  → Add to PATH or use: py -m pip install -r requirements.txt
+
+"Unable to locate credentials"
+  → Run: aws configure
+
+"Cannot load PowerShell script"
+  → Use deploy.bat instead, or run:
+    Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+"Access Denied" in app
+  → IAM permissions needed: ec2:Describe*, eks:*, rds:*, s3:*
+
+📱 DESKTOP SHORTCUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create:  powershell -ExecutionPolicy Bypass -File create_shortcut.ps1
+
+🌐 APP USAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Sidebar → Configure Region & Options
+2. Click "Collect snapshot now"
+3. View architecture graph
+4. Check "Outside-in security review" tab
+5. Download snapshot JSON for later
+
+💡 TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Use AWS_PROFILE env var for multi-account: set AWS_PROFILE=prod
+• Snapshots saved in: .\snapshots• Press Ctrl+C in terminal to stop app
+• Browser: http://localhost:8501
+
+📧 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Read WINDOWS_README.md for detailed troubleshooting
+
+╔═══════════════════════════════════════════════════════════════════╗
+║  Quick Start: deploy.bat → run_app.bat → Collect snapshot        ║
+╚═══════════════════════════════════════════════════════════════════╝
