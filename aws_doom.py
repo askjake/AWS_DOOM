@@ -306,14 +306,7 @@ class AWSMap:
                 vpc_x, vpc_y = grid_to_world(vpc_row_pos, vpc_col)
                 
                 # Horizontal hallway from LB to VPC
-                self._add_hallway(
-                    lb_x + ROOM_SIZE_MEDIUM, lb_y + ROOM_SIZE_MEDIUM // 2,
-                    vpc_x, vpc_y + ROOM_SIZE_LARGE // 2,
-                    HALLWAY_WIDTH,
-                    ResourceType.HALLWAY,
-                    sign_text="CORRIDOR",
-                    direction_to="→ VPC"
-                )
+                self._add_hallway(lb_x + ROOM_SIZE_MEDIUM, lb_y + ROOM_SIZE_MEDIUM // 2, vpc_x, vpc_y + ROOM_SIZE_LARGE // 2, HALLWAY_WIDTH)
         
         # Connect VPCs to their Subnets
         for vpc_id, (vpc_row_pos, vpc_col) in vpc_positions.items():
@@ -327,14 +320,7 @@ class AWSMap:
                     subnet_x, subnet_y = grid_to_world(int(subnet_row), subnet_col)
                     
                     # Horizontal hallway from VPC to Subnet
-                    self._add_hallway(
-                        vpc_x + ROOM_SIZE_LARGE, vpc_y + ROOM_SIZE_LARGE // 2,
-                        subnet_x, subnet_y + ROOM_SIZE_SMALL // 2,
-                        HALLWAY_WIDTH,
-                        ResourceType.HALLWAY,
-                        sign_text="PASSAGE",
-                        direction_to="→ Subnet"
-                    )
+                    self._add_hallway(vpc_x + ROOM_SIZE_LARGE, vpc_y + ROOM_SIZE_LARGE // 2, subnet_x, subnet_y + ROOM_SIZE_SMALL // 2, HALLWAY_WIDTH)
         
         # 5. ADD SECURITY GROUPS as locked rooms near subnets
         for sg_idx, sg in enumerate(security_groups[:6]):
@@ -423,6 +409,312 @@ class AWSMap:
         return room
     
     
+
+def _add_hallway(self, x1: float, y1: float, x2: float, y2: float, 
+                     width: float = 40):
+        """Add a hallway connecting two points with openings in walls"""
+        color = DARK_GRAY
+        
+        # Calculate hallway direction
+        dx = x2 - x1
+        dy = y2 - y1
+        distance = math.sqrt(dx * dx + dy * dy)
+        
+        if distance < 10:
+            return  # Too close, no hallway needed
+        
+        # Normalize direction
+        dx_norm = dx / distance
+        dy_norm = dy / distance
+        
+        # Perpendicular direction for width
+        perp_x = -dy_norm
+        perp_y = dx_norm
+        
+        # Create hallway walls on both sides
+        half_width = width / 2
+        
+        # Left wall of hallway
+        wall1_x1 = x1 + perp_x * half_width
+        wall1_y1 = y1 + perp_y * half_width
+        wall1_x2 = x2 + perp_x * half_width
+        wall1_y2 = y2 + perp_y * half_width
+        
+        # Right wall of hallway
+        wall2_x1 = x1 - perp_x * half_width
+        wall2_y1 = y1 - perp_y * half_width
+        wall2_x2 = x2 - perp_x * half_width
+        wall2_y2 = y2 - perp_y * half_width
+        
+        # Add hallway walls with directional signs
+        # Calculate direction for signs
+        angle = math.atan2(dy_norm, dx_norm)
+        if abs(angle) < math.pi/4:
+            direction = "→ East"
+        elif abs(angle) > 3*math.pi/4:
+            direction = "← West"
+        elif angle > 0:
+            direction = "↓ South"
+        else:
+            direction = "↑ North"
+        
+        self.walls.append(
+            Wall(wall1_x1, wall1_y1, wall1_x2, wall1_y2, 
+                 color, ResourceType.HALLWAY, "Hallway", "hallway", False,
+                 "CORRIDOR", direction, 0)
+        )
+        self.walls.append(
+            Wall(wall2_x1, wall2_y1, wall2_x2, wall2_y2, 
+                 color, ResourceType.HALLWAY, "Hallway", "hallway", False,
+                 "CORRIDOR", direction, 0)
+        )
+    
+    def _create_doorway(self, room_x: float, room_y: float, room_width: float, 
+                        room_height: float, side: str = 'right'):
+        """Create an opening (doorway) in a room wall by removing wall segments"""
+        doorway_size = 80  # Larger doorways for easier passage
+        
+        # Remove the appropriate wall segment and create opening
+        new_walls = []
+        walls_modified = False
+        
+        for wall in self.walls:
+            keep_wall = True
+            
+            # Check if this wall belongs to the room we're modifying
+            wall_in_room = False
+            
+            if side == 'right':
+                # Right wall: vertical wall at room_x + room_width
+                if (abs(wall.x1 - (room_x + room_width)) < 5 and 
+                    abs(wall.x2 - (room_x + room_width)) < 5 and
+                    wall.y1 >= room_y - 5 and wall.y2 <= room_y + room_height + 5):
+                    wall_in_room = True
+            
+            elif side == 'left':
+                # Left wall: vertical wall at room_x
+                if (abs(wall.x1 - room_x) < 5 and 
+                    abs(wall.x2 - room_x) < 5 and
+                    wall.y1 >= room_y - 5 and wall.y2 <= room_y + room_height + 5):
+                    wall_in_room = True
+            
+            elif side == 'top':
+                # Top wall: horizontal wall at room_y
+                if (abs(wall.y1 - room_y) < 5 and 
+                    abs(wall.y2 - room_y) < 5 and
+                    wall.x1 >= room_x - 5 and wall.x2 <= room_x + room_width + 5):
+                    wall_in_room = True
+            
+            elif side == 'bottom':
+                # Bottom wall: horizontal wall at room_y + room_height
+                if (abs(wall.y1 - (room_y + room_height)) < 5 and 
+                    abs(wall.y2 - (room_y + room_height)) < 5 and
+                    wall.x1 >= room_x - 5 and wall.x2 <= room_x + room_width + 5):
+                    wall_in_room = True
+            
+            if wall_in_room:
+                walls_modified = True
+                # This is the wall we want to modify - create doorway
+                if side in ['right', 'left']:
+                    # Vertical wall - split by Y coordinate
+                    wall_mid_y = (wall.y1 + wall.y2) / 2
+                    gap_start = wall_mid_y - doorway_size / 2
+                    gap_end = wall_mid_y + doorway_size / 2
+                    
+                    # Keep top segment if it exists
+                    if wall.y1 < gap_start - 5:
+                        new_walls.append(
+                            Wall(wall.x1, wall.y1, wall.x2, gap_start,
+                                 wall.color, wall.resource_type, wall.resource_name, 
+                                 wall.resource_id, wall.requires_key,
+                                 wall.sign_text, wall.direction_to, wall.texture_pattern)
+                        )
+                    
+                    # Keep bottom segment if it exists
+                    if wall.y2 > gap_end + 5:
+                        new_walls.append(
+                            Wall(wall.x1, gap_end, wall.x2, wall.y2,
+                                 wall.color, wall.resource_type, wall.resource_name,
+                                 wall.resource_id, wall.requires_key,
+                                 wall.sign_text, wall.direction_to, wall.texture_pattern)
+                        )
+                    
+                    # Gap in middle is the doorway - no wall added here
+                    keep_wall = False
+                
+                else:  # top or bottom - horizontal wall
+                    # Horizontal wall - split by X coordinate
+                    wall_mid_x = (wall.x1 + wall.x2) / 2
+                    gap_start = wall_mid_x - doorway_size / 2
+                    gap_end = wall_mid_x + doorway_size / 2
+                    
+                    # Keep left segment if it exists
+                    if wall.x1 < gap_start - 5:
+                        new_walls.append(
+                            Wall(wall.x1, wall.y1, gap_start, wall.y2,
+                                 wall.color, wall.resource_type, wall.resource_name,
+                                 wall.resource_id, wall.requires_key,
+                                 wall.sign_text, wall.direction_to, wall.texture_pattern)
+                        )
+                    
+                    # Keep right segment if it exists
+                    if wall.x2 > gap_end + 5:
+                        new_walls.append(
+                            Wall(gap_end, wall.y1, wall.x2, wall.y2,
+                                 wall.color, wall.resource_type, wall.resource_name,
+                                 wall.resource_id, wall.requires_key,
+                                 wall.sign_text, wall.direction_to, wall.texture_pattern)
+                        )
+                    
+                    keep_wall = False
+            
+            if keep_wall:
+                new_walls.append(wall)
+        
+        self.walls = new_walls
+        
+        if walls_modified:
+            print(f"  Created doorway on {side} side at ({room_x}, {room_y})")
+
+
+
+
+
+class DoomRenderer:
+    """3D raycasting renderer in DOOM style"""
+    
+    def __init__(self, screen: pygame.Surface, aws_map: AWSMap):
+        self.screen = screen
+        self.aws_map = aws_map
+        self.font = pygame.font.Font(None, 24)
+        self.small_font = pygame.font.Font(None, 18)
+        self.title_font = pygame.font.Font(None, 36)
+        
+    
+    def render_wall_texture(self, x: int, y: int, height: int, width: int, 
+                           color: tuple, pattern: int, shade: float):
+        """Render wall with texture pattern"""
+        # Apply shading
+        shaded_color = tuple(int(c * shade) for c in color)
+        
+        # Draw base wall
+        pygame.draw.rect(self.screen, shaded_color, (x, y, width, height))
+        
+        # Add texture pattern
+        if pattern == 1:  # Vertical stripes
+            stripe_width = max(2, width // 8)
+            for i in range(0, int(width), stripe_width * 2):
+                darker = tuple(int(c * 0.8) for c in shaded_color)
+                pygame.draw.rect(self.screen, darker, (x + i, y, stripe_width, height))
+        
+        elif pattern == 2:  # Dotted pattern
+            dot_spacing = max(8, int(height) // 10)
+            lighter = tuple(min(255, int(c * 1.2)) for c in shaded_color)
+            for dy in range(0, int(height), dot_spacing):
+                pygame.draw.circle(self.screen, lighter, 
+                                 (int(x + width/2), int(y + dy)), 2)
+        
+        elif pattern == 3:  # Grid pattern
+            grid_size = max(10, int(height) // 8)
+            darker = tuple(int(c * 0.7) for c in shaded_color)
+            for dy in range(0, int(height), grid_size):
+                pygame.draw.line(self.screen, darker, (x, y + dy), (x + width, y + dy), 1)
+    
+    def render_wall_sign(self, x: int, y: int, height: int, width: int,
+                        sign_text: str, direction_text: str):
+        """Render AWS-themed text sign on wall with service icons"""
+        if not sign_text and not direction_text:
+            return
+        
+        # Only render if width is significant
+        if width < 5:
+            return
+        
+        # AWS service icon mapping
+        service_icons = {
+            'VPC': '🔷',
+            'Subnet': '🔹',
+            'SG': '🔒',
+            'EKS': '☸',
+            'LB': '⚖',
+            'RDS': '🗄',
+            'CORRIDOR': '→',
+        }
+        
+        # Detect service type from sign text
+        icon = '▪'
+        for service, sicon in service_icons.items():
+            if service in sign_text:
+                icon = sicon
+                break
+        
+        # Sign background - AWS themed
+        sign_height = min(90, int(height) // 3)
+        sign_y = int(y + (height - sign_height) // 2)
+        
+        # Create sign with AWS orange border
+        sign_surface = pygame.Surface((int(width), sign_height), pygame.SRCALPHA)
+        sign_surface.fill((20, 30, 50, 220))  # Dark blue-black background
+        
+        # AWS orange border
+        pygame.draw.rect(sign_surface, AWS_ORANGE, (0, 0, int(width), sign_height), 2)
+        pygame.draw.rect(sign_surface, AWS_ORANGE, (2, 2, int(width)-4, sign_height-4), 1)
+        
+        self.screen.blit(sign_surface, (int(x), sign_y))
+        
+        # Render icon
+        icon_surf = self.small_font.render(icon, True, AWS_ORANGE)
+        self.screen.blit(icon_surf, (int(x) + 5, sign_y + 5))
+        
+        # Render main sign text
+        if sign_text:
+            display_text = sign_text[:28] if len(sign_text) > 28 else sign_text
+            # AWS-style white text
+            text_surface = self.small_font.render(display_text, True, (240, 240, 240))
+            text_rect = text_surface.get_rect(center=(int(x + width//2), sign_y + sign_height//3 + 5))
+            self.screen.blit(text_surface, text_rect)
+        
+        # Render direction indicator with AWS green
+        if direction_text:
+            dir_surface = self.small_font.render(direction_text, True, LAMBDA_GREEN)
+            dir_rect = dir_surface.get_rect(center=(int(x + width//2), sign_y + 2*sign_height//3))
+            self.screen.blit(dir_surface, dir_rect)
+    
+    def render_directional_arrow(self, x: int, y: int, height: int, 
+                                 direction: str, color: tuple):
+        """Render directional arrow on wall"""
+        if not direction:
+            return
+        
+        arrow_y = y + height // 2
+        arrow_size = min(20, height // 4)
+        
+        # Parse direction
+        if '→' in direction or 'right' in direction.lower():
+            # Right arrow
+            points = [
+                (x + 10, arrow_y - arrow_size),
+                (x + 10 + arrow_size, arrow_y),
+                (x + 10, arrow_y + arrow_size)
+            ]
+            pygame.draw.polygon(self.screen, color, points)
+        elif '←' in direction or 'left' in direction.lower():
+            # Left arrow
+            points = [
+                (x + 30, arrow_y - arrow_size),
+                (x + 10, arrow_y),
+                (x + 30, arrow_y + arrow_size)
+            ]
+            pygame.draw.polygon(self.screen, color, points)
+        elif '↑' in direction or 'up' in direction.lower():
+            # Up arrow
+            points = [
+                (x + 20, arrow_y - arrow_size),
+                (x + 20 + arrow_size, arrow_y + 10),
+                (x + 20 - arrow_size, arrow_y + 10)
+            ]
+            pygame.draw.polygon(self.screen, color, points)
+
     def cast_ray(self, player: Player, ray_angle: float) -> Tuple[Optional[Wall], float]:
         """Cast a single ray and return the wall hit and distance"""
         sin_a = math.sin(ray_angle)
