@@ -421,8 +421,67 @@ class AWSMap:
         self.walls.extend(room.walls)
         
         return room
+
+    def _add_hallway(self, x1: float, y1: float, x2: float, y2: float, 
+                     width: float = 40):
+        """Add a hallway connecting two points with openings in walls"""
+        color = DARK_GRAY
+        
+        # Calculate hallway direction
+        dx = x2 - x1
+        dy = y2 - y1
+        distance = math.sqrt(dx * dx + dy * dy)
+        
+        if distance < 10:
+            return  # Too close, no hallway needed
+        
+        # Normalize direction
+        dx_norm = dx / distance
+        dy_norm = dy / distance
+        
+        # Perpendicular direction for width
+        perp_x = -dy_norm
+        perp_y = dx_norm
+        
+        # Create hallway walls on both sides
+        half_width = width / 2
+        
+        # Left wall of hallway
+        wall1_x1 = x1 + perp_x * half_width
+        wall1_y1 = y1 + perp_y * half_width
+        wall1_x2 = x2 + perp_x * half_width
+        wall1_y2 = y2 + perp_y * half_width
+        
+        # Right wall of hallway
+        wall2_x1 = x1 - perp_x * half_width
+        wall2_y1 = y1 - perp_y * half_width
+        wall2_x2 = x2 - perp_x * half_width
+        wall2_y2 = y2 - perp_y * half_width
+        
+        # Add hallway walls with directional signs
+        # Calculate direction for signs
+        angle = math.atan2(dy_norm, dx_norm)
+        if abs(angle) < math.pi/4:
+            direction = "→ East"
+        elif abs(angle) > 3*math.pi/4:
+            direction = "← West"
+        elif angle > 0:
+            direction = "↓ South"
+        else:
+            direction = "↑ North"
+        
+        self.walls.append(
+            Wall(wall1_x1, wall1_y1, wall1_x2, wall1_y2, 
+                 color, ResourceType.HALLWAY, "Hallway", "hallway", False,
+                 "CORRIDOR", direction, 0)
+        )
+        self.walls.append(
+            Wall(wall2_x1, wall2_y1, wall2_x2, wall2_y2, 
+                 color, ResourceType.HALLWAY, "Hallway", "hallway", False,
+                 "CORRIDOR", direction, 0)
+        )
     
-    
+
     def cast_ray(self, player: Player, ray_angle: float) -> Tuple[Optional[Wall], float]:
         """Cast a single ray and return the wall hit and distance"""
         sin_a = math.sin(ray_angle)
