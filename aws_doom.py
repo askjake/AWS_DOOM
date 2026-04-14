@@ -25,6 +25,14 @@ DOORWAY_SIZE = 80
 ROOM_SPACING = 100
 VPC_SPACING = 400
 
+# Grid-based layout system for clean, organized maps
+GRID_SIZE       = 400   # Size of each grid cell (pixels)
+GRID_MARGIN     = 50    # Margin between grid cells
+LB_COLUMN       = 0     # Load Balancers in column 0
+VPC_COLUMN      = 2     # VPCs in column 2
+SUBNET_COLUMN   = 4     # Subnets in column 4
+
+
 # Initialize Pygame
 pygame.init()
 
@@ -158,6 +166,13 @@ class Player:
     keys: List[str] = field(default_factory=list)
 
 
+
+def grid_to_world(row: int, col: int) -> tuple:
+    """Convert grid coordinates to world pixel coordinates"""
+    x = 100 + (col * (GRID_SIZE + GRID_MARGIN))
+    y = 100 + (row * (GRID_SIZE + GRID_MARGIN))
+    return (x, y)
+
 class AWSMap:
     """Generate a DOOM-style map from AWS snapshot data"""
     
@@ -174,228 +189,173 @@ class AWSMap:
             return json.load(f)
             
     def _generate_map(self):
-        """Generate the entire map structure from AWS snapshot"""
-        # Start position
-        current_x = 100
-        current_y = 100
-        room_size = ROOM_SIZE_MEDIUM
-        hallway_width = HALLWAY_WIDTH
+        """Generate grid-based map with logical routing from AWS snapshot"""
         
         # Handle both nested and flat snapshot structures
-        # Try nested structure first (vpc.vpcs), then flat (vpcs)
         vpcs = []
         if 'vpc' in self.snapshot and isinstance(self.snapshot['vpc'], dict):
             vpcs = self.snapshot['vpc'].get('vpcs', [])
         elif 'vpcs' in self.snapshot:
             vpcs = self.snapshot.get('vpcs', [])
         
-        # Generate VPC rooms (main areas)
-        for vpc_idx, vpc in enumerate(vpcs[:10]):  # Limit to 10 VPCs
-            vpc_id = vpc.get('VpcId', f'vpc-{vpc_idx}')
-            vpc_cidr = vpc.get('CidrBlock', 'Unknown')
+        subnets_all = []
+        if 'vpc' in self.snapshot and isinstance(self.snapshot['vpc'], dict):
+            subnets_all = self.snapshot['vpc'].get('subnets', [])
+        elif 'subnets' in self.snapshot:
+            subnets_all = self.snapshot.get('subnets', [])
+        
+        load_balancers = []
+        if 'elbv2' in self.snapshot:
+            load_balancers = self.snapshot['elbv2'].get('load_balancers', [])
+        
+        security_groups = []
+        if 'ec2' in self.snapshot:
+            security_groups = self.snapshot['ec2'].get('security_groups', [])
+        
+        # === GRID LAYOUT PLAN ===
+        # Column 0: Load Balancers (entry points)
+        # Column 1: Hallway connections
+        # Column 2: VPCs (main containers)
+        # Column 3: Hallway connections
+        # Column 4: Subnets (network segments)
+        # Column 5: Security Groups & Resources
+        
+        lb_row = 0
+        vpc_row = 0
+        
+        # Track what we've created for connections
+        lb_positions = {}
+        vpc_positions = {}
+        subnet_positions = {}
+        
+        # 1. CREATE LOAD BALANCERS (Entry points in column 0)
+        for lb_idx, lb in enumerate(load_balancers[:5]):  # Limit to 5 LBs
+            lb_name = lb.get('LoadBalancerName', f'LB-{lb_idx}')
+            lb_arn = lb.get('LoadBalancerArn', f'arn-lb-{lb_idx}')
+            vpc_id = lb.get('VpcId', None)
             
-            # Create VPC room (large container)
-            vpc_x = current_x
-            vpc_y = current_y + (vpc_idx * (room_size * 3))
+            # Place in grid
+            lb_x, lb_y = grid_to_world(lb_row, LB_COLUMN)
+            
+            lb_room = self._create_room(
+                lb_x, lb_y, ROOM_SIZE_MEDIUM, ROOM_SIZE_MEDIUM,
+                ResourceType.LOAD_BALANCER, f"LB {lb_name[:15]}", lb_arn,
+                sign_text=f"LB {lb_name[:15]}",
+                direction_to=f"→ VPC {vpc_id[:8] if vpc_id else 'N/A'}"
+            )
+            self.rooms.append(lb_room)
+            lb_positions[lb_arn] = (lb_row, LB_COLUMN, vpc_id)
+            
+            # Set spawn point at first Load Balancer
+            if lb_idx == 0:
+                self.spawn_x = lb_x + ROOM_SIZE_MEDIUM // 2
+                self.spawn_y = lb_y + ROOM_SIZE_MEDIUM // 2
+            
+            lb_row += 1
+        
+        # 2. CREATE VPCs (Main containers in column 2)
+        for vpc_idx, vpc in enumerate(vpcs[:8]):  # Limit to 8 VPCs
+            vpc_id = vpc.get('VpcId', f'vpc-{vpc_idx}')
+            vpc_cidr = vpc.get('CidrBlock', '0.0.0.0/0')
+            
+            # Place in grid
+            vpc_x, vpc_y = grid_to_world(vpc_row, VPC_COLUMN)
             
             vpc_room = self._create_room(
-                vpc_x, vpc_y, room_size * 2, room_size * 2,
+                vpc_x, vpc_y, ROOM_SIZE_LARGE, ROOM_SIZE_LARGE,
                 ResourceType.VPC, f"VPC {vpc_cidr}", vpc_id,
+                sign_text=f"VPC {vpc_cidr}",
+                direction_to="→ Subnets",
                 metadata={'cidr': vpc_cidr, 'vpc_id': vpc_id}
             )
             self.rooms.append(vpc_room)
+            vpc_positions[vpc_id] = (vpc_row, VPC_COLUMN)
             
-            # Generate subnet rooms inside VPC
-            subnets = []
-            if 'vpc' in self.snapshot and isinstance(self.snapshot['vpc'], dict):
-                subnets = [s for s in self.snapshot['vpc'].get('subnets', []) 
-                          if s.get('VpcId') == vpc_id]
-            elif 'subnets' in self.snapshot:
-                subnets = [s for s in self.snapshot.get('subnets', []) 
-                          if s.get('VpcId') == vpc_id]
+            # 3. CREATE SUBNETS for this VPC (in column 4, aligned with VPC row)
+            vpc_subnets = [s for s in subnets_all if s.get('VpcId') == vpc_id]
             
-            for sub_idx, subnet in enumerate(subnets[:6]):  # Limit subnets
+            for sub_idx, subnet in enumerate(vpc_subnets[:4]):  # Max 4 subnets per VPC
                 subnet_id = subnet.get('SubnetId', f'subnet-{sub_idx}')
-                subnet_cidr = subnet.get('CidrBlock', 'Unknown')
-                az = subnet.get('AvailabilityZone', 'Unknown')
+                subnet_cidr = subnet.get('CidrBlock', '0.0.0.0/0')
+                az = subnet.get('AvailabilityZone', 'N/A')
                 
-                # Position subnets in a grid inside VPC
-                sub_x = vpc_x + 50 + (sub_idx % 2) * (room_size + 20)
-                sub_y = vpc_y + 50 + (sub_idx // 2) * (room_size + 20)
+                # Place subnet in same row as VPC, but in subnet column
+                # If multiple subnets, stack them vertically
+                subnet_row = vpc_row + (sub_idx * 0.6)  # Slight offset
+                subnet_x, subnet_y = grid_to_world(int(subnet_row), SUBNET_COLUMN)
                 
                 subnet_room = self._create_room(
-                    sub_x, sub_y, room_size, room_size,
-                    ResourceType.SUBNET, f"Subnet {subnet_cidr[:12]}", 
-                    subnet_id, metadata={'cidr': subnet_cidr, 'az': az}
+                    subnet_x, subnet_y, ROOM_SIZE_MEDIUM, ROOM_SIZE_SMALL,
+                    ResourceType.SUBNET, f"Subnet {subnet_cidr}", subnet_id,
+                    sign_text=f"Subnet {subnet_cidr}",
+                    direction_to=f"AZ: {az[-2:]}",
+                    metadata={'cidr': subnet_cidr, 'vpc_id': vpc_id, 'az': az}
                 )
                 self.rooms.append(subnet_room)
+                subnet_positions[subnet_id] = (subnet_row, SUBNET_COLUMN, vpc_id)
             
-            # Connect VPC to first subnet with hallway
-            if subnets:
-                first_subnet_x = vpc_x + 50 + room_size // 2
-                first_subnet_y = vpc_y + 50 + room_size // 2
-                vpc_center_x = vpc_x + room_size
-                vpc_center_y = vpc_y + room_size
-                
-                # Create doorway in VPC wall
-                self._create_doorway(vpc_x, vpc_y, room_size * 2, room_size * 2, 'right')
-                
-                # Add hallway
-                self._add_hallway(vpc_center_x, vpc_center_y, 
-                                first_subnet_x, first_subnet_y, width=50)
-                
-                # Add directional sign to VPC wall pointing to subnets
-                for wall in vpc_room.walls:
-                    if wall.x1 > vpc_center_x:  # Right wall
-                        wall.sign_text = f"VPC: {vpc_cidr[:15]}"
-                        wall.direction_to = "→ Subnets"
+            vpc_row += 2  # Space out VPCs vertically
         
-        # Generate security group rooms (locked areas requiring keys)
-        sgs = []
-        if 'vpc' in self.snapshot and isinstance(self.snapshot['vpc'], dict):
-            sgs = self.snapshot['vpc'].get('security_groups', [])[:8]
-        elif 'security_groups' in self.snapshot:
-            sgs = self.snapshot.get('security_groups', [])[:8]
+        # 4. CREATE HALLWAY CONNECTIONS (Logical routing)
         
-        for sg_idx, sg in enumerate(sgs):
+        # Connect Load Balancers to their VPCs
+        for lb_arn, (lb_row, lb_col, vpc_id) in lb_positions.items():
+            if vpc_id and vpc_id in vpc_positions:
+                lb_x, lb_y = grid_to_world(lb_row, lb_col)
+                vpc_row_pos, vpc_col = vpc_positions[vpc_id]
+                vpc_x, vpc_y = grid_to_world(vpc_row_pos, vpc_col)
+                
+                # Horizontal hallway from LB to VPC
+                self._add_hallway(
+                    lb_x + ROOM_SIZE_MEDIUM, lb_y + ROOM_SIZE_MEDIUM // 2,
+                    vpc_x, vpc_y + ROOM_SIZE_LARGE // 2,
+                    HALLWAY_WIDTH,
+                    ResourceType.HALLWAY,
+                    sign_text="CORRIDOR",
+                    direction_to="→ VPC"
+                )
+        
+        # Connect VPCs to their Subnets
+        for vpc_id, (vpc_row_pos, vpc_col) in vpc_positions.items():
+            vpc_subnets = [(sid, pos) for sid, pos in subnet_positions.items() 
+                          if pos[2] == vpc_id]
+            
+            if vpc_subnets:
+                vpc_x, vpc_y = grid_to_world(vpc_row_pos, vpc_col)
+                
+                for subnet_id, (subnet_row, subnet_col, _) in vpc_subnets:
+                    subnet_x, subnet_y = grid_to_world(int(subnet_row), subnet_col)
+                    
+                    # Horizontal hallway from VPC to Subnet
+                    self._add_hallway(
+                        vpc_x + ROOM_SIZE_LARGE, vpc_y + ROOM_SIZE_LARGE // 2,
+                        subnet_x, subnet_y + ROOM_SIZE_SMALL // 2,
+                        HALLWAY_WIDTH,
+                        ResourceType.HALLWAY,
+                        sign_text="PASSAGE",
+                        direction_to="→ Subnet"
+                    )
+        
+        # 5. ADD SECURITY GROUPS as locked rooms near subnets
+        for sg_idx, sg in enumerate(security_groups[:6]):
             sg_id = sg.get('GroupId', f'sg-{sg_idx}')
-            sg_name = sg.get('GroupName', 'Unknown')[:20]
-            vpc_id = sg.get('VpcId', '')
+            sg_name = sg.get('GroupName', f'SG-{sg_idx}')
+            vpc_id = sg.get('VpcId', None)
             
-            sg_x = current_x + 400 + (sg_idx % 3) * (room_size + 30)
-            sg_y = current_y + (sg_idx // 3) * (room_size + 30)
-            
-            # Security groups require "keys" (authorization)
-            sg_room = self._create_room(
-                sg_x, sg_y, room_size, room_size,
-                ResourceType.SECURITY_GROUP, f"SG {sg_name}", sg_id,
-                requires_key=True,
-                metadata={'group_name': sg_name, 'vpc_id': vpc_id}
-            )
-            self.rooms.append(sg_room)
-            
-        # Generate EKS cluster rooms (major zones)
-        clusters = []
-        if 'eks' in self.snapshot and isinstance(self.snapshot['eks'], dict):
-            clusters = self.snapshot['eks'].get('clusters', [])
-        elif 'eks' in self.snapshot and isinstance(self.snapshot['eks'], list):
-            clusters = self.snapshot['eks']
-        
-        for cls_idx, cluster in enumerate(clusters[:4]):
-            cls_name = cluster.get('name', f'cluster-{cls_idx}')[:20]
-            cls_status = cluster.get('status', 'Unknown')
-            
-            cls_x = current_x + 800
-            cls_y = current_y + cls_idx * (room_size * 2 + 50)
-            
-            cluster_room = self._create_room(
-                cls_x, cls_y, room_size * 1.5, room_size * 1.5,
-                ResourceType.EKS_CLUSTER, f"EKS {cls_name}",
-                cls_name, metadata={'status': cls_status}
-            )
-            self.rooms.append(cluster_room)
-            
-        # Generate load balancer rooms (entry points)
-        lbs = []
-        if 'elbv2' in self.snapshot and isinstance(self.snapshot['elbv2'], dict):
-            lbs = self.snapshot['elbv2'].get('load_balancers', [])
-        elif 'load_balancers' in self.snapshot:
-            lbs = self.snapshot.get('load_balancers', [])
-        
-        for lb_idx, lb in enumerate(lbs[:5]):
-            lb_name = lb.get('LoadBalancerName', f'lb-{lb_idx}')[:20]
-            lb_scheme = lb.get('Scheme', 'internal')
-            
-            lb_x = current_x - 200
-            lb_y = current_y + lb_idx * (room_size + 50)
-            
-            # Internet-facing LBs are entry points (no key required)
-            lb_room = self._create_room(
-                lb_x, lb_y, room_size, room_size,
-                ResourceType.LOAD_BALANCER, f"LB {lb_name}",
-                lb_name, requires_key=(lb_scheme != 'internet-facing'),
-                metadata={'scheme': lb_scheme}
-            )
-            self.rooms.append(lb_room)
-            
-            # Connect load balancer to nearest VPC
-            if vpcs and self.rooms:
-                # Find nearest VPC
-                min_dist = float('inf')
-                nearest_vpc = None
-                for room in self.rooms:
-                    if room.resource_type == ResourceType.VPC:
-                        dist = math.sqrt((room.x - lb_x)**2 + (room.y - lb_y)**2)
-                        if dist < min_dist:
-                            min_dist = dist
-                            nearest_vpc = room
+            if vpc_id and vpc_id in vpc_positions:
+                # Place near the VPC it belongs to
+                vpc_row_pos, _ = vpc_positions[vpc_id]
+                sg_x, sg_y = grid_to_world(vpc_row_pos + sg_idx, SUBNET_COLUMN + 1)
                 
-                if nearest_vpc:
-                    # Create doorway in LB
-                    self._create_doorway(lb_x, lb_y, room_size, room_size, 'right')
-                    
-                    # Create doorway in VPC  
-                    self._create_doorway(nearest_vpc.x, nearest_vpc.y, 
-                                       nearest_vpc.width, nearest_vpc.height, 'left')
-                    
-                    # Add hallway
-                    lb_center_x = lb_x + room_size // 2
-                    lb_center_y = lb_y + room_size // 2
-                    vpc_center_x = nearest_vpc.x + nearest_vpc.width // 2
-                    vpc_center_y = nearest_vpc.y + nearest_vpc.height // 2
-                    
-                    self._add_hallway(lb_center_x, lb_center_y, 
-                                    vpc_center_x, vpc_center_y, width=60)
-                
-                # Add directional signs
-                for wall in lb_room.walls:
-                    if wall.x1 > lb_center_x:  # Right wall
-                        wall.sign_text = f"LB: {lb_name}"
-                        wall.direction_to = f"→ VPC {nearest_vpc.resource_name[:20]}"
-                
-                # Add sign to VPC entrance
-                for wall in nearest_vpc.walls:
-                    if wall.x1 < vpc_center_x:  # Left wall
-                        wall.sign_text = "VPC Entrance"
-                        wall.direction_to = f"← From LB"
-            
-        # Generate RDS rooms (data vaults - require keys)
-        # FIXED: Handle both nested dict and flat list structures
-        dbs = []
-        if 'rds' in self.snapshot:
-            if isinstance(self.snapshot['rds'], dict):
-                dbs = self.snapshot['rds'].get('db_instances', [])
-            elif isinstance(self.snapshot['rds'], list):
-                dbs = self.snapshot['rds']
-        
-        for db_idx, db in enumerate(dbs[:4]):
-            db_id = db.get('DBInstanceIdentifier', f'db-{db_idx}')[:20]
-            db_engine = db.get('Engine', 'Unknown')
-            db_public = db.get('PubliclyAccessible', False)
-            
-            db_x = current_x + 1200
-            db_y = current_y + db_idx * (room_size + 50)
-            
-            db_room = self._create_room(
-                db_x, db_y, room_size, room_size,
-                ResourceType.RDS, f"RDS {db_id}",
-                db_id, requires_key=(not db_public),
-                metadata={'engine': db_engine, 'public': db_public}
-            )
-            self.rooms.append(db_room)
-        
-        # Set spawn point (start at first load balancer or VPC)
-        if lbs:
-            self.spawn_x = current_x - 200 + room_size // 2
-            self.spawn_y = current_y + room_size // 2
-        elif vpcs:
-            self.spawn_x = 100 + room_size // 2
-            self.spawn_y = 100 + room_size // 2
-        elif dbs:
-            # If no VPCs or LBs, spawn at first RDS
-            self.spawn_x = current_x + 1200 + room_size // 2
-            self.spawn_y = current_y + room_size // 2
-            
+                sg_room = self._create_room(
+                    sg_x, sg_y, ROOM_SIZE_SMALL, ROOM_SIZE_SMALL,
+                    ResourceType.SECURITY_GROUP, f"SG {sg_name[:12]}", sg_id,
+                    sign_text=f"SG {sg_name[:12]}",
+                    direction_to="🔒 Restricted",
+                    requires_key=True
+                )
+                self.rooms.append(sg_room)
+    
     def _create_room(self, x: float, y: float, width: float, height: float,
                      resource_type: ResourceType, name: str, resource_id: str,
                      requires_key: bool = False, metadata: Dict = None) -> Room:
