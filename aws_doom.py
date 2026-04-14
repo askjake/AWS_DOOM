@@ -306,14 +306,7 @@ class AWSMap:
                 vpc_x, vpc_y = grid_to_world(vpc_row_pos, vpc_col)
                 
                 # Horizontal hallway from LB to VPC
-                self._add_hallway(
-                    lb_x + ROOM_SIZE_MEDIUM, lb_y + ROOM_SIZE_MEDIUM // 2,
-                    vpc_x, vpc_y + ROOM_SIZE_LARGE // 2,
-                    HALLWAY_WIDTH,
-                    ResourceType.HALLWAY,
-                    sign_text="CORRIDOR",
-                    direction_to="→ VPC"
-                )
+                self._add_hallway(lb_x + ROOM_SIZE_MEDIUM, lb_y + ROOM_SIZE_MEDIUM // 2, vpc_x, vpc_y + ROOM_SIZE_LARGE // 2, HALLWAY_WIDTH)
         
         # Connect VPCs to their Subnets
         for vpc_id, (vpc_row_pos, vpc_col) in vpc_positions.items():
@@ -327,14 +320,7 @@ class AWSMap:
                     subnet_x, subnet_y = grid_to_world(int(subnet_row), subnet_col)
                     
                     # Horizontal hallway from VPC to Subnet
-                    self._add_hallway(
-                        vpc_x + ROOM_SIZE_LARGE, vpc_y + ROOM_SIZE_LARGE // 2,
-                        subnet_x, subnet_y + ROOM_SIZE_SMALL // 2,
-                        HALLWAY_WIDTH,
-                        ResourceType.HALLWAY,
-                        sign_text="PASSAGE",
-                        direction_to="→ Subnet"
-                    )
+                    self._add_hallway(vpc_x + ROOM_SIZE_LARGE, vpc_y + ROOM_SIZE_LARGE // 2, subnet_x, subnet_y + ROOM_SIZE_SMALL // 2, HALLWAY_WIDTH)
         
         # 5. ADD SECURITY GROUPS as locked rooms near subnets
         for sg_idx, sg in enumerate(security_groups[:6]):
