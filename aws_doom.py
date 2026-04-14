@@ -379,36 +379,49 @@ class AWSMap:
             metadata=metadata
         )
         
-        # Create walls
+        # Create walls with proper signature
         color = COLORS.get(resource_type.value, COLORS['default'])
         
-        # Top wall
+        # Top wall - only top wall gets the sign
         top_wall = Wall(
-            x, y, x + width, y,
-            color, ResourceType.WALL, resource_type,
-            sign_text=sign_text,
-            direction_text=direction_to
+            x1=x, y1=y, x2=x + width, y2=y,
+            color=color,
+            resource_type=resource_type,
+            resource_name=resource_name,
+            resource_id=resource_id,
+            sign_text=sign_text or "",
+            direction_to=direction_to or ""
         )
         # Right wall
         right_wall = Wall(
-            x + width, y, x + width, y + height,
-            color, ResourceType.WALL, resource_type
+            x1=x + width, y1=y, x2=x + width, y2=y + height,
+            color=color,
+            resource_type=resource_type,
+            resource_name=resource_name,
+            resource_id=resource_id
         )
         # Bottom wall
         bottom_wall = Wall(
-            x, y + height, x + width, y + height,
-            color, ResourceType.WALL, resource_type
+            x1=x, y1=y + height, x2=x + width, y2=y + height,
+            color=color,
+            resource_type=resource_type,
+            resource_name=resource_name,
+            resource_id=resource_id
         )
         # Left wall
         left_wall = Wall(
-            x, y, x, y + height,
-            color, ResourceType.WALL, resource_type
+            x1=x, y1=y, x2=x, y2=y + height,
+            color=color,
+            resource_type=resource_type,
+            resource_name=resource_name,
+            resource_id=resource_id
         )
         
         room.walls = [top_wall, right_wall, bottom_wall, left_wall]
         self.walls.extend(room.walls)
         
         return room
+    
     
     def cast_ray(self, player: Player, ray_angle: float) -> Tuple[Optional[Wall], float]:
         """Cast a single ray and return the wall hit and distance"""
