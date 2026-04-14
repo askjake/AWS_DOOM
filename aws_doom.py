@@ -54,15 +54,30 @@ CEILING_COLOR = (60, 60, 80)
 
 # AWS Resource Colors
 COLORS = {
-    'vpc': BLUE,
-    'subnet': CYAN,
-    'security_group': ORANGE,
-    'eks_cluster': PURPLE,
-    'load_balancer': GREEN,
-    'rds': RED,
-    's3': YELLOW,
-    'default': GRAY
+    'vpc': EC2_BLUE,           # VPC walls use EC2 blue
+    'subnet': S3_TEAL,         # Subnet walls use S3 teal
+    'security_group': ALARM_RED, # Security groups are red (restricted)
+    'eks_cluster': RDS_PURPLE, # EKS clusters purple
+    'load_balancer': LAMBDA_GREEN, # Load balancers green
+    'rds': RDS_PURPLE,         # RDS purple
+    'hallway': (70, 70, 70),   # Hallways dark gray
+    'default': AWS_ORANGE,     # Default AWS orange
+    'floor': FLOOR_BOTTOM,
+    'ceiling': CEILING_TOP,
 }
+
+# AWS-Themed Color Palette (from agentpi003 refactor)
+AWS_ORANGE      = (255, 153, 0)   # Primary AWS brand
+EC2_BLUE        = (35, 142, 214)  # Compute services
+LAMBDA_GREEN    = (82, 196, 26)   # Serverless
+S3_TEAL         = (100, 181, 246) # Storage
+ALARM_RED       = (255, 69, 58)   # Danger/alerts
+RDS_PURPLE      = (146, 43, 140)  # Databases
+CEILING_TOP     = (8, 18, 32)     # Deep black
+CEILING_BOTTOM  = (20, 40, 70)    # Dim blue ambient
+FLOOR_TOP       = (25, 20, 15)    # Warm concrete
+FLOOR_BOTTOM    = (10, 8, 6)      # Deep shadow
+
 
 # Movement
 MOVE_SPEED = 5
@@ -361,7 +376,17 @@ class AWSMap:
                      resource_type: ResourceType, name: str, resource_id: str,
                      requires_key: bool = False, metadata: Dict = None) -> Room:
         """Create a room with four walls"""
-        color = COLORS.get(resource_type.value, COLORS['default'])
+        # Map AWS resource type to themed color
+        color_map = {
+            ResourceType.VPC: COLORS['vpc'],
+            ResourceType.SUBNET: COLORS['subnet'],
+            ResourceType.SECURITY_GROUP: COLORS['security_group'],
+            ResourceType.EKS_CLUSTER: COLORS['eks_cluster'],
+            ResourceType.LOAD_BALANCER: COLORS['load_balancer'],
+            ResourceType.RDS: COLORS['rds'],
+            ResourceType.HALLWAY: COLORS['hallway'],
+        }
+        color = color_map.get(resource_type, COLORS['default'])
         
         # Determine texture pattern based on resource type
         texture_map = {
@@ -564,6 +589,30 @@ class AWSMap:
             print(f"  Created doorway on {side} side at ({room_x}, {room_y})")
 
 
+
+def lerp_color(c1: tuple, c2: tuple, t: float) -> tuple:
+    """Linear interpolate between two RGB colors."""
+    return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+
+
+def apply_distance_fog(color: tuple, distance: float, max_depth: float = MAX_DEPTH) -> tuple:
+    """Apply exponential distance fog - dims color toward near-black."""
+    fog_factor = 1.0 - min(1.0, (distance / max_depth) * 1.2)
+    return tuple(int(c * fog_factor) for c in color)
+
+
+def apply_scanline_texture(base_color: tuple, y: int, wall_height: int) -> tuple:
+    """Simulate horizontal scanline texture banding for wall detail."""
+    if wall_height == 0:
+        return base_color
+    # Alternate light/dark bands every ~6px
+    band = int((y / max(wall_height, 1)) * wall_height / 6) % 2
+    if band == 0:
+        return tuple(min(255, int(c * 1.08)) for c in base_color)
+    else:
+        return tuple(int(c * 0.92) for c in base_color)
+
+
 class DoomRenderer:
     """3D raycasting renderer in DOOM style"""
     
@@ -606,32 +655,61 @@ class DoomRenderer:
     
     def render_wall_sign(self, x: int, y: int, height: int, width: int,
                         sign_text: str, direction_text: str):
-        """Render text sign on wall - only render once per wall"""
+        """Render AWS-themed text sign on wall with service icons"""
         if not sign_text and not direction_text:
             return
         
-        # Only render if width is significant (not a thin slice)
+        # Only render if width is significant
         if width < 5:
             return
         
-        # Sign background - semi-transparent darker rectangle
-        sign_height = min(80, int(height) // 3)
+        # AWS service icon mapping
+        service_icons = {
+            'VPC': '🔷',
+            'Subnet': '🔹',
+            'SG': '🔒',
+            'EKS': '☸',
+            'LB': '⚖',
+            'RDS': '🗄',
+            'CORRIDOR': '→',
+        }
+        
+        # Detect service type from sign text
+        icon = '▪'
+        for service, sicon in service_icons.items():
+            if service in sign_text:
+                icon = sicon
+                break
+        
+        # Sign background - AWS themed
+        sign_height = min(90, int(height) // 3)
         sign_y = int(y + (height - sign_height) // 2)
+        
+        # Create sign with AWS orange border
         sign_surface = pygame.Surface((int(width), sign_height), pygame.SRCALPHA)
-        sign_surface.fill((0, 0, 0, 200))
+        sign_surface.fill((20, 30, 50, 220))  # Dark blue-black background
+        
+        # AWS orange border
+        pygame.draw.rect(sign_surface, AWS_ORANGE, (0, 0, int(width), sign_height), 2)
+        pygame.draw.rect(sign_surface, AWS_ORANGE, (2, 2, int(width)-4, sign_height-4), 1)
+        
         self.screen.blit(sign_surface, (int(x), sign_y))
+        
+        # Render icon
+        icon_surf = self.small_font.render(icon, True, AWS_ORANGE)
+        self.screen.blit(icon_surf, (int(x) + 5, sign_y + 5))
         
         # Render main sign text
         if sign_text:
-            # Truncate if too long
-            display_text = sign_text[:25] if len(sign_text) > 25 else sign_text
-            text_surface = self.small_font.render(display_text, True, (255, 255, 100))
-            text_rect = text_surface.get_rect(center=(int(x + width//2), sign_y + sign_height//3))
+            display_text = sign_text[:28] if len(sign_text) > 28 else sign_text
+            # AWS-style white text
+            text_surface = self.small_font.render(display_text, True, (240, 240, 240))
+            text_rect = text_surface.get_rect(center=(int(x + width//2), sign_y + sign_height//3 + 5))
             self.screen.blit(text_surface, text_rect)
         
-        # Render direction indicator
+        # Render direction indicator with AWS green
         if direction_text:
-            dir_surface = self.small_font.render(direction_text, True, (100, 255, 100))
+            dir_surface = self.small_font.render(direction_text, True, LAMBDA_GREEN)
             dir_rect = dir_surface.get_rect(center=(int(x + width//2), sign_y + 2*sign_height//3))
             self.screen.blit(dir_surface, dir_rect)
     
@@ -736,9 +814,22 @@ class DoomRenderer:
                 x = ray * slice_width
                 y = (SCREEN_HEIGHT - wall_height) / 2
                 
-                # Render wall with texture
-                self.render_wall_texture(x, y, wall_height, slice_width + 1, 
-                                        wall.color, wall.texture_pattern, shade)
+                # Get base color (with AWS service-specific colors)
+                base_color = wall.color
+                
+                # Apply distance fog
+                fogged_color = apply_distance_fog(base_color, dist)
+                
+                # Apply shading based on distance
+                fogged_color = tuple(int(c * shade) for c in fogged_color)
+                
+                # Render wall column with scanline texture
+                for scan_y in range(int(y), int(y + wall_height)):
+                    if 0 <= scan_y < SCREEN_HEIGHT:
+                        scan_color = apply_scanline_texture(fogged_color, scan_y - int(y), int(wall_height))
+                        pixel_surf = pygame.Surface((slice_width + 1, 1))
+                        pixel_surf.fill(scan_color)
+                        self.screen.blit(pixel_surf, (x, scan_y))
                 
                 # Render sign if close enough and wall is roughly center-facing
                 # Only render on the actual wall's center, not scattered
