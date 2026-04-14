@@ -1,0 +1,204 @@
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║           ✅ AWS DOOM WEB - AUTO PORT DETECTION ADDED ✅                     ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEM FIXED:
+  ❌ Before: Server crashed if port 5000 was in use
+  ✅ Now:    Automatically finds next available port (5000-5019)
+
+CHANGES MADE:
+  ✓ Updated aws_doom_web.py
+  ✓ Updated static/js/game.js  
+  ✓ Added find_available_port() function
+  ✓ Added get_local_ip() helper
+  ✓ Dynamic port display in browser
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          HOW IT WORKS NOW                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+1. Server tries port 5000
+2. If in use, tries 5001, 5002, etc.
+3. Continues up to port 5019
+4. Uses first available port found
+5. Displays actual port in console and browser
+
+SERVER OUTPUT:
+  Finding available port...
+  Starting Flask server on port 5003...
+  
+  Open your browser and navigate to:
+    Local:   http://localhost:5003
+    Network: http://192.168.1.100:5003
+
+BROWSER STATUS:
+  Connected (Port 5003)
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          CODE CHANGES                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+NEW FUNCTION: find_available_port()
+  - Tries ports in range (default: 5000-5019)
+  - Tests each port by attempting to bind
+  - Returns first available port
+  - Returns None if all ports busy
+
+NEW FUNCTION: get_local_ip()
+  - Determines local network IP address
+  - Used to display network access URL
+  - Fallback to 'localhost' if detection fails
+
+UPDATED: main()
+  - Calls find_available_port() before starting server
+  - Displays both local and network URLs with actual port
+  - Handles case where no ports available (error message)
+  - Server binds to dynamic port instead of hardcoded 5000
+
+UPDATED: JavaScript Client
+  - Automatically connects to server's port
+  - Displays current port in connection status
+  - No hardcoded port references
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          BENEFITS                                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+✅ NO MORE PORT CONFLICTS
+   Multiple instances can run simultaneously
+
+✅ AUTOMATIC RECOVERY
+   Server finds available port automatically
+
+✅ DEVELOPER FRIENDLY
+   Can run alongside other Flask apps
+
+✅ USER FRIENDLY
+   Clear error message if all ports busy
+
+✅ NETWORK INFO
+   Shows both local and network access URLs
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          USAGE EXAMPLES                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+SCENARIO 1: Port 5000 is free
+  → Server uses port 5000
+  → http://localhost:5000
+
+SCENARIO 2: Port 5000 is busy
+  → Server tries 5001
+  → http://localhost:5001
+
+SCENARIO 3: Running multiple instances
+  → Instance 1: port 5000
+  → Instance 2: port 5001
+  → Instance 3: port 5002
+
+SCENARIO 4: All ports busy (5000-5019)
+  → Error message displayed
+  → Instructions to close other apps
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          TESTING                                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+TEST 1: Normal startup
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  ./run_web_server.sh
+  → Should show port 5000 (if available)
+
+TEST 2: Port conflict
+  # In terminal 1:
+  python3 -m http.server 5000
+  
+  # In terminal 2:
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  ./run_web_server.sh
+  → Should show port 5001
+
+TEST 3: Multiple instances
+  ./run_web_server.sh  # Terminal 1 → port 5000
+  ./run_web_server.sh  # Terminal 2 → port 5001
+  ./run_web_server.sh  # Terminal 3 → port 5002
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          CONFIGURATION                                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+To change port range, edit aws_doom_web.py:
+
+  # Line ~360
+  server_port = find_available_port(
+      start_port=5000,      # Start at port 5000
+      max_attempts=20       # Try 20 ports (5000-5019)
+  )
+
+Custom port range examples:
+  find_available_port(start_port=8000, max_attempts=10)  # 8000-8009
+  find_available_port(start_port=3000, max_attempts=50)  # 3000-3049
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          VERIFICATION                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+✓ I MODIFIED these files:
+  - /home/montjac/AWS_Architecture_explorer/AWS_DOOM/game/aws_doom_web.py
+    (Added port detection and IP discovery)
+  
+  - /home/montjac/AWS_Architecture_explorer/AWS_DOOM/game/static/js/game.js
+    (Updated to handle dynamic ports)
+
+✗ I DID NOT:
+  - Start the web server (no execution environment)
+  - Test the port detection (requires running server)
+  - Modify firewall rules
+
+VERIFICATION COMMANDS:
+  # Check new function exists
+  grep -n "find_available_port" ~/AWS_Architecture_explorer/AWS_DOOM/game/aws_doom_web.py
+  
+  # Check IP detection exists
+  grep -n "get_local_ip" ~/AWS_Architecture_explorer/AWS_DOOM/game/aws_doom_web.py
+  
+  # Test server startup
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  python3 aws_doom_web.py
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          ERROR HANDLING                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+IF NO PORTS AVAILABLE:
+  ERROR: Could not find an available port in range 5000-5019
+  Please close other applications using these ports and try again.
+
+TO FIX:
+  1. Check what's using ports: lsof -i :5000-5019
+  2. Close unnecessary applications
+  3. Or increase max_attempts in code
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          STATUS                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+STATUS: ✅ COMPLETE
+
+The web server now:
+  ✓ Automatically detects available ports
+  ✓ Shows local and network URLs
+  ✓ Displays actual port in use
+  ✓ Handles port conflicts gracefully
+  ✓ Supports multiple simultaneous instances
+
+No more "Address already in use" errors!
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║              🎮 AWS DOOM WEB SERVER - NOW MORE ROBUST! 🌐                    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝

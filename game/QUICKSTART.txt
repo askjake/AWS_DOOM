@@ -1,0 +1,82 @@
+===================================================================
+  AWS DOOM - Quick Start Guide
+===================================================================
+
+WHAT IS AWS DOOM?
+
+A first-person DOOM-style 3D game that lets you explore your AWS
+infrastructure by walking through VPCs, subnets, security groups,
+EKS clusters, load balancers, and databases as if they were rooms
+and hallways in a classic FPS dungeon crawler.
+
+===================================================================
+QUICK START
+===================================================================
+
+1. INSTALL DEPENDENCIES:
+   
+   cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+   pip install pygame
+
+2. RUN THE GAME:
+
+   Linux/Mac:
+   ./run_aws_doom.sh
+
+   Windows:
+   run_aws_doom.bat
+
+   Or manually:
+   python3 aws_doom.py
+
+===================================================================
+CONTROLS
+===================================================================
+
+W         - Move forward
+S         - Move backward
+A         - Rotate left
+D         - Rotate right
+E         - Interact / Collect authorization key
+M         - Toggle minimap
+ESC       - Quit
+
+===================================================================
+GAMEPLAY
+===================================================================
+
+- Start at an internet-facing load balancer or VPC entry
+- Explore rooms representing AWS resources
+- Collect keys to unlock secured resources (security groups, etc)
+- View real AWS metadata in the HUD
+- Navigate using the minimap
+
+===================================================================
+COLOR GUIDE
+===================================================================
+
+Blue      - VPCs (Virtual Private Clouds)
+Cyan      - Subnets
+Orange    - Security Groups (require keys)
+Purple    - EKS Clusters
+Green     - Load Balancers
+Red       - RDS Databases (may require keys)
+Yellow    - S3 Buckets
+
+===================================================================
+REQUIREMENTS
+===================================================================
+
+- Python 3.10+
+- pygame 2.5.0+
+- AWS snapshot file in ~/AWS_Architecture_explorer/snapshots/
+
+To create a snapshot:
+cd ~/AWS_Architecture_explorer
+python collect_snapshot.py --region us-west-2 --out snapshots/snapshot.json
+
+===================================================================
+TROUBLESHOOTING
+===================================================================
+
+Problem: No
