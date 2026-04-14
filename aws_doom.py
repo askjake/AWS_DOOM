@@ -661,6 +661,335 @@ class AWSMap:
             control_y += 20
 
 
+class DoomRenderer:
+    """3D raycasting renderer in DOOM style"""
+    
+    def __init__(self, screen: pygame.Surface, aws_map: AWSMap):
+        self.screen = screen
+        self.aws_map = aws_map
+        self.font = pygame.font.Font(None, 24)
+        self.small_font = pygame.font.Font(None, 18)
+        self.title_font = pygame.font.Font(None, 36)
+        
+    
+    def render_wall_texture(self, x: int, y: int, height: int, width: int, 
+                           color: tuple, pattern: int, shade: float):
+        """Render wall with texture pattern"""
+        # Apply shading
+        shaded_color = tuple(int(c * shade) for c in color)
+        
+        # Draw base wall
+        pygame.draw.rect(self.screen, shaded_color, (x, y, width, height))
+        
+        # Add texture pattern
+        if pattern == 1:  # Vertical stripes
+            stripe_width = max(2, width // 8)
+            for i in range(0, int(width), stripe_width * 2):
+                darker = tuple(int(c * 0.8) for c in shaded_color)
+                pygame.draw.rect(self.screen, darker, (x + i, y, stripe_width, height))
+        
+        elif pattern == 2:  # Dotted pattern
+            dot_spacing = max(8, int(height) // 10)
+            lighter = tuple(min(255, int(c * 1.2)) for c in shaded_color)
+            for dy in range(0, int(height), dot_spacing):
+                pygame.draw.circle(self.screen, lighter, 
+                                 (int(x + width/2), int(y + dy)), 2)
+        
+        elif pattern == 3:  # Grid pattern
+            grid_size = max(10, int(height) // 8)
+            darker = tuple(int(c * 0.7) for c in shaded_color)
+            for dy in range(0, int(height), grid_size):
+                pygame.draw.line(self.screen, darker, (x, y + dy), (x + width, y + dy), 1)
+    
+    def render_wall_sign(self, x: int, y: int, height: int, width: int,
+                        sign_text: str, direction_text: str):
+        """Render AWS-themed text sign on wall with service icons"""
+        if not sign_text and not direction_text:
+            return
+        
+        # Only render if width is significant
+        if width < 5:
+            return
+        
+        # AWS service icon mapping
+        service_icons = {
+            'VPC': '🔷',
+            'Subnet': '🔹',
+            'SG': '🔒',
+            'EKS': '☸',
+            'LB': '⚖',
+            'RDS': '🗄',
+            'CORRIDOR': '→',
+        }
+        
+        # Detect service type from sign text
+        icon = '▪'
+        for service, sicon in service_icons.items():
+            if service in sign_text:
+                icon = sicon
+                break
+        
+        # Sign background - AWS themed
+        sign_height = min(90, int(height) // 3)
+        sign_y = int(y + (height - sign_height) // 2)
+        
+        # Create sign with AWS orange border
+        sign_surface = pygame.Surface((int(width), sign_height), pygame.SRCALPHA)
+        sign_surface.fill((20, 30, 50, 220))  # Dark blue-black background
+        
+        # AWS orange border
+        pygame.draw.rect(sign_surface, AWS_ORANGE, (0, 0, int(width), sign_height), 2)
+        pygame.draw.rect(sign_surface, AWS_ORANGE, (2, 2, int(width)-4, sign_height-4), 1)
+        
+        self.screen.blit(sign_surface, (int(x), sign_y))
+        
+        # Render icon
+        icon_surf = self.small_font.render(icon, True, AWS_ORANGE)
+        self.screen.blit(icon_surf, (int(x) + 5, sign_y + 5))
+        
+        # Render main sign text
+        if sign_text:
+            display_text = sign_text[:28] if len(sign_text) > 28 else sign_text
+            # AWS-style white text
+            text_surface = self.small_font.render(display_text, True, (240, 240, 240))
+            text_rect = text_surface.get_rect(center=(int(x + width//2), sign_y + sign_height//3 + 5))
+            self.screen.blit(text_surface, text_rect)
+        
+        # Render direction indicator with AWS green
+        if direction_text:
+            dir_surface = self.small_font.render(direction_text, True, LAMBDA_GREEN)
+            dir_rect = dir_surface.get_rect(center=(int(x + width//2), sign_y + 2*sign_height//3))
+            self.screen.blit(dir_surface, dir_rect)
+    
+    def render_directional_arrow(self, x: int, y: int, height: int, 
+                                 direction: str, color: tuple):
+        """Render directional arrow on wall"""
+        if not direction:
+            return
+        
+        arrow_y = y + height // 2
+        arrow_size = min(20, height // 4)
+        
+        # Parse direction
+        if '→' in direction or 'right' in direction.lower():
+            # Right arrow
+            points = [
+                (x + 10, arrow_y - arrow_size),
+                (x + 10 + arrow_size, arrow_y),
+                (x + 10, arrow_y + arrow_size)
+            ]
+            pygame.draw.polygon(self.screen, color, points)
+        elif '←' in direction or 'left' in direction.lower():
+            # Left arrow
+            points = [
+                (x + 30, arrow_y - arrow_size),
+                (x + 10, arrow_y),
+                (x + 30, arrow_y + arrow_size)
+            ]
+            pygame.draw.polygon(self.screen, color, points)
+        elif '↑' in direction or 'up' in direction.lower():
+            # Up arrow
+            points = [
+                (x + 20, arrow_y - arrow_size),
+                (x + 20 + arrow_size, arrow_y + 10),
+                (x + 20 - arrow_size, arrow_y + 10)
+            ]
+            pygame.draw.polygon(self.screen, color, points)
+
+    def cast_ray(self, player: Player, ray_angle: float) -> Tuple[Optional[Wall], float]:
+        """Cast a single ray and return the wall hit and distance"""
+        sin_a = math.sin(ray_angle)
+        cos_a = math.cos(ray_angle)
+        
+        min_dist = MAX_DEPTH
+        hit_wall = None
+        
+        for wall in self.aws_map.walls:
+            # Line-line intersection
+            x1, y1 = wall.x1, wall.y1
+            x2, y2 = wall.x2, wall.y2
+            
+            # Wall direction
+            wall_dx = x2 - x1
+            wall_dy = y2 - y1
+            
+            # Ray direction
+            ray_dx = cos_a
+            ray_dy = sin_a
+            
+            # Solve for intersection
+            denominator = ray_dx * wall_dy - ray_dy * wall_dx
+            
+            if abs(denominator) < 0.0001:
+                continue
+                
+            t = ((x1 - player.x) * wall_dy - (y1 - player.y) * wall_dx) / denominator
+            u = ((x1 - player.x) * ray_dy - (y1 - player.y) * ray_dx) / denominator
+            
+            if t > 0 and 0 <= u <= 1:
+                dist = t
+                if dist < min_dist:
+                    min_dist = dist
+                    hit_wall = wall
+                    
+        return hit_wall, min_dist
+    
+    def render_3d_view(self, player: Player):
+        """Render the 3D first-person view"""
+        # Draw ceiling and floor
+        pygame.draw.rect(self.screen, CEILING_COLOR, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT // 2))
+        pygame.draw.rect(self.screen, FLOOR_COLOR, (0, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT // 2))
+        
+        # Cast rays
+        ray_angle = player.angle - HALF_FOV
+        
+        for ray in range(NUM_RAYS):
+            wall, dist = self.cast_ray(player, ray_angle)
+            
+            if wall:
+                # Fix fish-eye effect
+                dist = dist * math.cos(player.angle - ray_angle)
+                
+                # Calculate wall height
+                wall_height = min(40000 / (dist + 0.0001), SCREEN_HEIGHT)
+                
+                # Calculate color with distance shading
+                shade = max(0.2, 1 - dist / MAX_DEPTH)
+                color = tuple(int(c * shade) for c in wall.color)
+                
+                # Draw wall slice
+                slice_width = SCREEN_WIDTH / NUM_RAYS
+                x = ray * slice_width
+                y = (SCREEN_HEIGHT - wall_height) / 2
+                
+                # Get base color (with AWS service-specific colors)
+                base_color = wall.color
+                
+                # Apply distance fog
+                fogged_color = apply_distance_fog(base_color, dist)
+                
+                # Apply shading based on distance
+                fogged_color = tuple(int(c * shade) for c in fogged_color)
+                
+                # Render wall column with scanline texture
+                for scan_y in range(int(y), int(y + wall_height)):
+                    if 0 <= scan_y < SCREEN_HEIGHT:
+                        scan_color = apply_scanline_texture(fogged_color, scan_y - int(y), int(wall_height))
+                        pixel_surf = pygame.Surface((slice_width + 1, 1))
+                        pixel_surf.fill(scan_color)
+                        self.screen.blit(pixel_surf, (x, scan_y))
+                
+                # Render sign if close enough and wall is roughly center-facing
+                # Only render on the actual wall's center, not scattered
+                if dist < 250 and abs(ray - NUM_RAYS//2) < 5 and wall.sign_text:
+                    self.render_wall_sign(x, y, wall_height, slice_width + 1,
+                                         wall.sign_text, wall.direction_to)
+                
+                # Render arrow separately if direction exists
+                if dist < 200 and abs(ray - NUM_RAYS//2) < 8 and wall.direction_to:
+                    self.render_directional_arrow(x, y, wall_height, 
+                                                  wall.direction_to, (100, 255, 100))
+                
+                # Draw red overlay if door is locked
+                if wall.requires_key and wall.resource_id not in player.keys:
+                    lock_color = (200, 0, 0, 100)
+                    s = pygame.Surface((slice_width + 1, wall_height), pygame.SRCALPHA)
+                    s.fill(lock_color)
+                    self.screen.blit(s, (x, y))
+            
+            ray_angle += DELTA_ANGLE
+    
+    def render_2d_map(self, player: Player, x_offset: int, y_offset: int, scale: float = 0.15):
+        """Render minimap"""
+        map_surface = pygame.Surface((300, 300), pygame.SRCALPHA)
+        map_surface.fill((0, 0, 0, 180))
+        
+        # Draw walls
+        for wall in self.aws_map.walls:
+            x1 = int((wall.x1 - x_offset) * scale)
+            y1 = int((wall.y1 - y_offset) * scale)
+            x2 = int((wall.x2 - x_offset) * scale)
+            y2 = int((wall.y2 - y_offset) * scale)
+            
+            if -50 <= x1 < 350 and -50 <= y1 < 350:
+                pygame.draw.line(map_surface, wall.color, (x1, y1), (x2, y2), 2)
+        
+        # Draw player
+        player_x = int((player.x - x_offset) * scale)
+        player_y = int((player.y - y_offset) * scale)
+        
+        if 0 <= player_x < 300 and 0 <= player_y < 300:
+            pygame.draw.circle(map_surface, GREEN, (player_x, player_y), 5)
+            
+            # Draw direction indicator
+            dir_x = player_x + int(math.cos(player.angle) * 15)
+            dir_y = player_y + int(math.sin(player.angle) * 15)
+            pygame.draw.line(map_surface, GREEN, (player_x, player_y), (dir_x, dir_y), 2)
+        
+        self.screen.blit(map_surface, (SCREEN_WIDTH - 320, 20))
+    
+    def render_hud(self, player: Player, current_room: Optional[Room]):
+        """Render HUD with AWS resource information"""
+        # Draw HUD background
+        hud_surface = pygame.Surface((SCREEN_WIDTH, 150), pygame.SRCALPHA)
+        hud_surface.fill((0, 0, 0, 200))
+        self.screen.blit(hud_surface, (0, SCREEN_HEIGHT - 150))
+        
+        # Current location
+        y_pos = SCREEN_HEIGHT - 140
+        
+        if current_room:
+            # Resource type and name
+            type_text = self.font.render(f"Location: {current_room.resource_type.value.upper()}", 
+                                        True, WHITE)
+            self.screen.blit(type_text, (20, y_pos))
+            y_pos += 30
+            
+            name_text = self.small_font.render(f"{current_room.resource_name}", 
+                                              True, YELLOW)
+            self.screen.blit(name_text, (20, y_pos))
+            y_pos += 25
+            
+            # Metadata
+            if current_room.metadata:
+                meta_items = list(current_room.metadata.items())[:3]
+                meta_str = " | ".join([f"{k}: {str(v)[:30]}" for k, v in meta_items])
+                meta_text = self.small_font.render(meta_str, True, CYAN)
+                self.screen.blit(meta_text, (20, y_pos))
+            
+            # Access status
+            if current_room.requires_key:
+                access_color = GREEN if current_room.resource_id in player.keys else RED
+                access_text = "AUTHORIZED" if current_room.resource_id in player.keys else "LOCKED"
+                lock_render = self.font.render(f"Access: {access_text}", True, access_color)
+                self.screen.blit(lock_render, (SCREEN_WIDTH - 250, y_pos - 55))
+        
+        # Keys collected
+        keys_text = self.small_font.render(f"Keys: {len(player.keys)}", True, YELLOW)
+        self.screen.blit(keys_text, (SCREEN_WIDTH - 250, SCREEN_HEIGHT - 140))
+        
+        # Position
+        pos_text = self.small_font.render(
+            f"Position: ({int(player.x)}, {int(player.y)})", True, WHITE)
+        self.screen.blit(pos_text, (SCREEN_WIDTH - 250, SCREEN_HEIGHT - 115))
+        
+        # Controls
+        controls = [
+            "W/S: Move Forward/Back",
+            "A/D: Rotate Left/Right",
+            "E: Interact/Collect Key",
+            "M: Toggle Map",
+            "ESC: Quit"
+        ]
+        
+        control_y = 20
+        for control in controls:
+            control_text = self.small_font.render(control, True, WHITE)
+            self.screen.blit(control_text, (20, control_y))
+            control_y += 20
+
+
+
 class AWSGameWindow:
     """Main game loop and window management"""
     
