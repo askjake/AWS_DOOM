@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS DOOM - Web Interface</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 AWS DOOM - Architecture Explorer</h1>
+            <p class="subtitle">First-Person AWS Infrastructure Visualization</p>
+        </header>
+
+        <div id="game-area">
+            <div id="loading-screen" class="active">
+                <div class="loading-content">
+                    <h2>AWS DOOM</h2>
+                    <p>Loading AWS Architecture...</p>
+                    <div class="loading-spinner"></div>
+                    <button id="start-btn" class="btn-primary">Start Game</button>
+                    <div id="snapshot-selector">
+                        <label for="snapshot-list">Select Snapshot:</label>
+                        <select id="snapshot-list"></select>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="game-canvas">
+                <img id="game-frame" alt="Game View">
+                <div id="connection-status">Connecting...</div>
+            </div>
+        </div>
+
+        <div id="controls-panel">
+            <div class="control-section">
+                <h3>🎮 Controls</h3>
+                <div class="control-grid">
+                    <div class="control-item"><span class="key">W</span><span>Move Forward</span></div>
+                    <div class="control-item"><span class="key">S</span><span>Move Backward</span></div>
+                    <div class="control-item"><span class="key">A</span><span>Rotate Left</span></div>
+                    <div class="control-item"><span class="key">D</span><span>Rotate Right</span></div>
+                    <div class="control-item"><span class="key">E</span><span>Interact</span></div>
+                    <div class="control-item"><span class="key">M</span><span>Toggle Map</span></div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>📊 Stats</h3>
+                <div id="stats">
+                    <div class="stat-item"><span class="stat-label">Position:</span><span id="stat-position">--, --</span></div>
+                    <div class="stat-item"><span class="stat-label">Keys:</span><span id="stat-keys">0</span></div>
+                    <div class="stat-item"><span class="stat-label">Location:</span><span id="stat-location">Unknown</span></div>
+                    <div class="stat-item"><span class="stat-label">Access:</span><span id="stat-access">-</span></div>
+                    <div class="stat-item"><span class="stat-label">FPS:</span><span id="stat-fps">30</span></div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>☁️ Resource Info</h3>
+                <div id="resource-info">
+                    <div id="resource-type">No resource selected</div>
+                    <div id="resource-metadata"></div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>🎨 Color Guide</h3>
+                <div class="color-guide">
+                    <div class="color-item"><span class="color-box" style="background: #3264c8;"></span><span>VPCs</span></div>
+                    <div class="color-item"><span class="color-box" style="background: #32c8c8;"></span><span>Subnets</span></div>
+                    <div class="color-item"><span class="color-box" style="background: #ff8c00;"></span><span>Security Groups</span></div>
+                    <div class="color-item"><span class="color-box" style="background: #9632c8;"></span><span>EKS Clusters</span></div>
+                    <div class="color-item"><span class="color-box" style="background: #32c832;"></span><span>Load Balancers</span></div>
+                    <div class="color-item"><span class="color-box" style="background: #c83232;"></span><span>RDS</span></div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>AWS DOOM - Explore your AWS infrastructure in first-person 3D</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/game.js"></script>
+</body>
+</html>

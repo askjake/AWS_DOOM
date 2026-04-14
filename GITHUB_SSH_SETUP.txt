@@ -1,0 +1,148 @@
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                   🔑 GitHub SSH Key Setup Guide 🔑                           ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+✅ STEP 1: SSH Key Generated
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your new SSH key pair has been created:
+
+  Private Key: ~/.ssh/github_aws_doom      (KEEP SECRET)
+  Public Key:  ~/.ssh/github_aws_doom.pub  (Share with GitHub)
+  
+SSH Config:  ~/.ssh/config               (Configured)
+
+✅ STEP 2: Copy Your Public Key
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Copy this ENTIRE key (including "ssh-ed25519" and "askjake@github"):
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                                                                          │
+│  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMBJw9JNy+ppyEXUMnFaoEvFrMAPVR22FNgPofDUqkAA askjake@github
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+
+⚠️ IMPORTANT: Copy the ENTIRE line above!
+
+✅ STEP 3: Add Key to GitHub
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Go to GitHub.com and log in
+
+2. Click your profile picture (top right)
+
+3. Click "Settings"
+
+4. In the left sidebar, click "SSH and GPG keys"
+
+5. Click "New SSH key" (green button)
+
+6. Fill in the form:
+   
+   Title: AWS DOOM - Lambda 3080
+   
+   Key type: Authentication Key
+   
+   Key: [Paste the public key from above]
+
+7. Click "Add SSH key"
+
+8. Confirm with your password if prompted
+
+✅ STEP 4: Test SSH Connection
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After adding the key to GitHub, test the connection:
+
+  ssh -T git@github.com
+
+Expected response:
+  "Hi askjake! You've successfully authenticated..."
+
+✅ STEP 5: Update Git Remote to Use SSH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Update your AWS DOOM repository to use SSH:
+
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  
+  git remote set-url origin git@github.com:askjake/AWS_DOOM.git
+
+✅ STEP 6: Push to GitHub
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Now you can push without entering a password:
+
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  
+  git push -u origin main
+
+First push will ask to verify GitHub's fingerprint - type "yes"
+
+═══════════════════════════════════════════════════════════════════════════════
+                           TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+Problem: "Permission denied (publickey)"
+Solution: 
+  1. Make sure you added the key to GitHub
+  2. Test: ssh -T git@github.com
+  3. Check: ssh-add -l (should show your key)
+
+Problem: "Could not resolve hostname"
+Solution: Check internet connection and GitHub status
+
+Problem: ssh-agent not running
+Solution:
+  eval "$(ssh-agent -s)"
+  ssh-add ~/.ssh/github_aws_doom
+
+═══════════════════════════════════════════════════════════════════════════════
+                           QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+View public key:
+  cat ~/.ssh/github_aws_doom.pub
+
+Test GitHub connection:
+  ssh -T git@github.com
+
+Check remote URL:
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  git remote -v
+
+Change to SSH:
+  git remote set-url origin git@github.com:askjake/AWS_DOOM.git
+
+Push to GitHub:
+  git push -u origin main
+
+═══════════════════════════════════════════════════════════════════════════════
+                           SECURITY NOTES
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ Private key (~/.ssh/github_aws_doom) is protected (never share!)
+✓ Public key can be safely shared with GitHub
+✓ SSH config restricts key usage to GitHub only
+✓ Ed25519 algorithm provides strong security
+
+═══════════════════════════════════════════════════════════════════════════════
+                           NEXT STEPS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. [ ] Copy the public key shown above
+2. [ ] Go to GitHub.com → Settings → SSH and GPG keys
+3. [ ] Add the key with title "AWS DOOM - Lambda 3080"
+4. [ ] Test connection: ssh -T git@github.com
+5. [ ] Update remote: git remote set-url origin git@github.com:askjake/AWS_DOOM.git
+6. [ ] Push: git push -u origin main
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                   🚀 Ready to Push to GitHub! 🚀                             ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝

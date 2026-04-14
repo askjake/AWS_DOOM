@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python
 __pycache__/
 *.py[cod]
@@ -20,3 +21,23 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+=======
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.env
+.venv
+venv/
+.DS_Store
+.idea/
+.vscode/
+snapshots/*.json
+*.log
+>>>>>>> dd626441c185a5422213347070cfaba671dff51e

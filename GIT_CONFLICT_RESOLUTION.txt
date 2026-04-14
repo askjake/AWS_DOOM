@@ -1,0 +1,122 @@
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║              🔀 Git Conflict Resolution Guide 🔀                             ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+ISSUE: Remote repository has content not in local repository
+
+This happens when:
+  - GitHub repo was created with README/license/gitignore
+  - Someone else pushed to the repo
+  - Repo was initialized on GitHub with default files
+
+═══════════════════════════════════════════════════════════════════════════════
+                           SOLUTION OPTIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+OPTION 1: MERGE (Recommended if remote has important files)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pull remote changes and merge with your local files:
+
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  
+  git pull origin main --allow-unrelated-histories
+  
+  # If there are conflicts, Git will tell you which files
+  # Edit conflicted files, then:
+  git add .
+  git commit -m "Merged remote changes"
+  
+  # Now push
+  git push -u origin main
+
+Result: Both remote and local files are preserved
+
+OPTION 2: FORCE PUSH (Use if remote files are not important)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace remote repository with your local files:
+
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  
+  git push -u origin main --force
+
+⚠️ WARNING: This will DELETE all files currently on GitHub!
+           Use only if remote has just a default README you don't need
+
+Result: Remote is overwritten with your local files
+
+OPTION 3: FETCH AND REVIEW (Safe exploration)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+See what's on remote before deciding:
+
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game
+  
+  # Fetch remote changes
+  git fetch origin
+  
+  # See what files are on remote
+  git ls-tree -r origin/main --name-only
+  
+  # See remote commits
+  git log origin/main
+  
+  # Compare local vs remote
+  git diff main origin/main
+
+Result: You can see what's different before merging or force pushing
+
+═══════════════════════════════════════════════════════════════════════════════
+                           RECOMMENDED APPROACH
+═══════════════════════════════════════════════════════════════════════════════
+
+For a NEW repo that just has GitHub's default README:
+
+  1. Check what's on remote:
+     git fetch origin
+     git ls-tree -r origin/main --name-only
+  
+  2. If only README.md or LICENSE:
+     git push -u origin main --force
+  
+  3. If there are important files:
+     git pull origin main --allow-unrelated-histories
+     # Resolve conflicts if any
+     git push -u origin main
+
+═══════════════════════════════════════════════════════════════════════════════
+                           QUICK DECISION HELPER
+═══════════════════════════════════════════════════════════════════════════════
+
+Answer these questions:
+
+Q: Did you just create the GitHub repo?
+   YES → Likely just has default README → Use OPTION 2 (force push)
+   NO → Might have important data → Use OPTION 1 (merge)
+
+Q: Are there important files on GitHub you need?
+   YES → Use OPTION 1 (merge)
+   NO → Use OPTION 2 (force push)
+
+Q: Not sure what's on remote?
+   → Use OPTION 3 (fetch and review) first
+
+═══════════════════════════════════════════════════════════════════════════════
+                           ONE-LINER SOLUTIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+Just created repo with default files? Force push:
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game && git push -u origin main --force
+
+Want to keep everything? Merge:
+  cd ~/AWS_Architecture_explorer/AWS_DOOM/game && git pull origin main --allow-unrelated-histories && git push -u origin main
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║              Choose the option that fits your situation!                     ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
