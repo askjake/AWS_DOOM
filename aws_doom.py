@@ -53,6 +53,18 @@ FLOOR_COLOR = (30, 30, 30)
 CEILING_COLOR = (60, 60, 80)
 
 # AWS Resource Colors
+# AWS-Themed Color Palette (from agentpi003 refactor)
+AWS_ORANGE      = (255, 153, 0)   # Primary AWS brand
+EC2_BLUE        = (35, 142, 214)  # Compute services
+LAMBDA_GREEN    = (82, 196, 26)   # Serverless
+S3_TEAL         = (100, 181, 246) # Storage
+ALARM_RED       = (255, 69, 58)   # Danger/alerts
+RDS_PURPLE      = (146, 43, 140)  # Databases
+CEILING_TOP     = (8, 18, 32)     # Deep black
+CEILING_BOTTOM  = (20, 40, 70)    # Dim blue ambient
+FLOOR_TOP       = (25, 20, 15)    # Warm concrete
+FLOOR_BOTTOM    = (10, 8, 6)      # Deep shadow
+
 COLORS = {
     'vpc': EC2_BLUE,           # VPC walls use EC2 blue
     'subnet': S3_TEAL,         # Subnet walls use S3 teal
@@ -66,17 +78,6 @@ COLORS = {
     'ceiling': CEILING_TOP,
 }
 
-# AWS-Themed Color Palette (from agentpi003 refactor)
-AWS_ORANGE      = (255, 153, 0)   # Primary AWS brand
-EC2_BLUE        = (35, 142, 214)  # Compute services
-LAMBDA_GREEN    = (82, 196, 26)   # Serverless
-S3_TEAL         = (100, 181, 246) # Storage
-ALARM_RED       = (255, 69, 58)   # Danger/alerts
-RDS_PURPLE      = (146, 43, 140)  # Databases
-CEILING_TOP     = (8, 18, 32)     # Deep black
-CEILING_BOTTOM  = (20, 40, 70)    # Dim blue ambient
-FLOOR_TOP       = (25, 20, 15)    # Warm concrete
-FLOOR_BOTTOM    = (10, 8, 6)      # Deep shadow
 
 
 # Movement
@@ -93,6 +94,29 @@ class ResourceType(Enum):
     RDS = "rds"
     S3 = "s3"
     HALLWAY = "hallway"
+
+
+def lerp_color(c1: tuple, c2: tuple, t: float) -> tuple:
+    """Linear interpolate between two RGB colors."""
+    return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+
+
+def apply_distance_fog(color: tuple, distance: float, max_depth: float = MAX_DEPTH) -> tuple:
+    """Apply exponential distance fog - dims color toward near-black."""
+    fog_factor = 1.0 - min(1.0, (distance / max_depth) * 1.2)
+    return tuple(int(c * fog_factor) for c in color)
+
+
+def apply_scanline_texture(base_color: tuple, y: int, wall_height: int) -> tuple:
+    """Simulate horizontal scanline texture banding for wall detail."""
+    if wall_height == 0:
+        return base_color
+    # Alternate light/dark bands every ~6px
+    band = int((y / max(wall_height, 1)) * wall_height / 6) % 2
+    if band == 0:
+        return tuple(min(255, int(c * 1.08)) for c in base_color)
+    else:
+        return tuple(int(c * 0.92) for c in base_color)
 
 
 @dataclass
@@ -590,27 +614,6 @@ class AWSMap:
 
 
 
-def lerp_color(c1: tuple, c2: tuple, t: float) -> tuple:
-    """Linear interpolate between two RGB colors."""
-    return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
-
-
-def apply_distance_fog(color: tuple, distance: float, max_depth: float = MAX_DEPTH) -> tuple:
-    """Apply exponential distance fog - dims color toward near-black."""
-    fog_factor = 1.0 - min(1.0, (distance / max_depth) * 1.2)
-    return tuple(int(c * fog_factor) for c in color)
-
-
-def apply_scanline_texture(base_color: tuple, y: int, wall_height: int) -> tuple:
-    """Simulate horizontal scanline texture banding for wall detail."""
-    if wall_height == 0:
-        return base_color
-    # Alternate light/dark bands every ~6px
-    band = int((y / max(wall_height, 1)) * wall_height / 6) % 2
-    if band == 0:
-        return tuple(min(255, int(c * 1.08)) for c in base_color)
-    else:
-        return tuple(int(c * 0.92) for c in base_color)
 
 
 class DoomRenderer:
